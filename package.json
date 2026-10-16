@@ -1,0 +1,21 @@
+{
+  "name": "nexushub-lite",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n \"backend,frontend,mes,agent\" -c \"blue,green,magenta,yellow\" \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:mes\" \"npm run dev:agent\"",
+    "dev:backend": "npm --workspace=@nexushub/portal-backend run dev",
+    "dev:frontend": "npm --workspace=@nexushub/portal-frontend run dev",
+    "dev:mes": "npm --workspace=@nexushub/mes-engine run dev",
+    "dev:agent": "npm --workspace=@nexushub/client-agent run dev",
+    "build": "npm --workspace=@nexushub/client-sdk run build && npm --workspace=@nexushub/portal-frontend run build",
+    "simulate": "npm --workspace=@nexushub/load-simulator run simulate"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.6"
+  }
+}

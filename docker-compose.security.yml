@@ -1,0 +1,49 @@
+# ====================================================================
+# NEXUSHUB LITE: Optional Profile - Security Stack (WAF, IDS, SIEM)
+# Dijalankan dengan: docker compose -f docker-compose.yml -f docker-compose.security.yml --profile security up -d
+# ====================================================================
+
+services:
+  # BunkerWeb: Layer 7 WAF with OWASP CRS (Nginx based)
+  bunkerweb:
+    image: bunkerity/bunkerweb:1.5.8
+    container_name: nexushub-bunkerweb
+    profiles:
+      - security
+    ports:
+      - "80:8080"
+      - "443:8443"
+    environment:
+      - SERVER_NAME=nexushub.local
+      - USE_REVERSE_PROXY=yes
+      - REVERSE_PROXY_URL=/
+      - REVERSE_PROXY_HOST=http://portal-frontend:5173
+      - BAD_BEHAVIOR_STATUS_CODES=400 401 403 404 405
+      - BLOCK_TOR_EXIT_NODE=no
+      - USE_ANTIBOT=draft
+
+  # Falco: Container Runtime Security & Anomaly Detection
+  falco:
+    image: falcosecurity/falco-no-driver:0.37.1
+    container_name: nexushub-falco
+    profiles:
+      - security
+    privileged: false
+    environment:
+      - FALCO_BPF_PROBE=""
+    volumes:
+      - /var/run/docker.sock:/host/var/run/docker.sock:ro
+      - /dev:/host/dev:ro
+      - /proc:/host/proc:ro
+      - /boot:/host/boot:ro
+      - /lib/modules:/host/lib/modules:ro
+      - /usr:/host/usr:ro
+
+  # Wazuh Agent / Syslog forwarder placeholder
+  security-agent:
+    image: alpine:latest
+    container_name: nexushub-security-agent
+    profiles:
+      - security
+    command: ["sh", "-c", "echo 'NexusHub Security Agent active' && tail -f /dev/null"]
+

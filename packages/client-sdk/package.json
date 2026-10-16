@@ -1,0 +1,18 @@
+{
+  "name": "@nexushub/client-sdk",
+  "version": "1.0.0",
+  "description": "NexusHub Lite Client SDK for Publisher & Subscriber Applications",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "prepublish": "npm run build"
+  },
+  "keywords": ["nexushub", "sdk", "data-exchange", "splp"],
+  "author": "NexusHub Team",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
+}
+

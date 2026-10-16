@@ -1,0 +1,20 @@
+{
+  "name": "@nexushub/load-simulator",
+  "version": "1.0.0",
+  "description": "NexusHub Lite Traffic & Load Simulator (Sync REST, Async Kafka, Burst, DLQ)",
+  "main": "src/index.ts",
+  "scripts": {
+    "simulate": "tsx src/index.ts",
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@nexushub/client-sdk": "*",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "tsx": "^4.7.2",
+    "typescript": "^5.4.5"
+  }
+}
+

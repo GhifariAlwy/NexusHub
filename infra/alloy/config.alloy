@@ -1,0 +1,35 @@
+// ====================================================================
+// Grafana Alloy: Unified OTel Collector Configuration
+// Ingests OTLP Traces, Metrics, and Logs from NexusHub components
+// ====================================================================
+
+otelcol.receiver.otlp "default" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    metrics = [otelcol.processor.batch.default.input]
+    logs    = [otelcol.processor.batch.default.input]
+    traces  = [otelcol.processor.batch.default.input]
+  }
+}
+
+otelcol.processor.batch "default" {
+  timeout = "1s"
+  send_batch_size = 256
+
+  output {
+    metrics = [otelcol.exporter.logging.default.input]
+    logs    = [otelcol.exporter.logging.default.input]
+    traces  = [otelcol.exporter.logging.default.input]
+  }
+}
+
+otelcol.exporter.logging "default" {
+  verbosity = "basic"
+}
+

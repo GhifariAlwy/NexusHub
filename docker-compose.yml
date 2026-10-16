@@ -1,0 +1,138 @@
+# ====================================================================
+# NEXUSHUB LITE: Single-Laptop Core Stack (RAM Total < 3GB)
+# ====================================================================
+
+services:
+  # 1. PostgreSQL 16 Alpine: Source of Truth (portal_db)
+  postgres:
+    image: postgres:16-alpine
+    container_name: nexushub-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: portal_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      PGDATA: /var/lib/postgresql/data/pgdata
+    command: >
+      postgres -c shared_buffers=64MB
+               -c max_connections=60
+               -c effective_cache_size=128MB
+    volumes:
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d portal_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. DragonFly: High-speed In-Memory Routing Table untuk MES
+  dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:v1.19.0
+    container_name: nexushub-dragonfly
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: ["--proactor_threads=1", "--maxmemory=256mb", "--bind=0.0.0.0", "--cache_mode=true"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # 3. Apache Kafka KRaft (Tanpa Zookeeper) - Heap limit 512MB & Auto-create topics
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: nexushub-kafka
+    restart: unless-stopped
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
+      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:9092,PLAINTEXT_INTERNAL://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT_INTERNAL'
+      CLUSTER_ID: '4L622nShTZaJguQTRET5qW'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_LOG_RETENTION_HOURS: 24
+      KAFKA_LOG_SEGMENT_BYTES: 104857600
+      KAFKA_HEAP_OPTS: '-Xmx512M -Xms256M'
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+
+  # 4. Kafka UI: Web Console untuk memantau Topik (Ingress, Inbox, DLQ, Audit)
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: nexushub-kafka-ui
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      DYNAMIC_CONFIG_ENABLED: 'true'
+      KAFKA_CLUSTERS_0_NAME: nexushub-kafka
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    depends_on:
+      - kafka
+
+  # 5. ClickHouse Server: Observability, Audit Logs & Capacity Planning OLAP
+  clickhouse:
+    image: clickhouse/clickhouse-server:23.8-alpine
+    container_name: nexushub-clickhouse
+    restart: unless-stopped
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    volumes:
+      - ./infra/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - clickhouse_data:/var/lib/clickhouse
+
+  # 6. Grafana Alloy: Unified OpenTelemetry Collector
+  alloy:
+    image: grafana/alloy:v1.0.0
+    container_name: nexushub-alloy
+    restart: unless-stopped
+    ports:
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+      - "12345:12345"
+    volumes:
+      - ./infra/alloy/config.alloy:/etc/alloy/config.alloy:ro
+    command: ["run", "--server.http.listen-addr=0.0.0.0:12345", "/etc/alloy/config.alloy"]
+    depends_on:
+      - clickhouse
+
+  # 7. Grafana OSS: Visualisasi & Single Pane of Glass
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: nexushub-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=grafana-clickhouse-datasource
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - clickhouse
+
+volumes:
+  postgres_data:
+  kafka_data:
+  clickhouse_data:
+  grafana_data:

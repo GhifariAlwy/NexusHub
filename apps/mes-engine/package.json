@@ -1,0 +1,23 @@
+{
+  "name": "@nexushub/mes-engine",
+  "version": "1.0.0",
+  "description": "NexusHub MES Engine: Stateless Routing Engine and Async Audit Engine",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "kafkajs": "^2.2.4",
+    "ioredis": "^5.4.1",
+    "pg": "^8.11.5",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "@types/pg": "^8.11.5",
+    "tsx": "^4.7.2",
+    "typescript": "^5.4.5"
+  }
+}
+

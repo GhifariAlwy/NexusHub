@@ -1,0 +1,34 @@
+# ====================================================================
+# NEXUSHUB LITE: Optional Profile - WSO2 IS & WSO2 APIM
+# Dijalankan dengan: docker compose -f docker-compose.yml -f docker-compose.wso2.yml --profile wso2 up -d
+# ====================================================================
+
+services:
+  # WSO2 Identity Server: SSO OIDC & SCIM 2.0 User Provisioning
+  wso2is:
+    image: wso2/wso2is:7.0.0
+    container_name: nexushub-wso2is
+    profiles:
+      - wso2
+    ports:
+      - "9443:9443"
+    environment:
+      - JVM_MEM_OPTS=-Xms256m -Xmx512m
+    depends_on:
+      - postgres
+
+  # WSO2 API Manager: Synchronous API Gateway & Developer Portal
+  wso2am:
+    image: wso2/wso2am:4.3.0
+    container_name: nexushub-wso2am
+    profiles:
+      - wso2
+    ports:
+      - "9444:9443"
+      - "8243:8243"
+    environment:
+      - JVM_MEM_OPTS=-Xms512m -Xmx1024m
+    depends_on:
+      - postgres
+      - wso2is
+
