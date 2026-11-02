@@ -1,1 +1,34 @@
-node_modules
+# Dependencies
+node_modules/
+
+# Production build outputs
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment and local configs
+.env
+.env.local
+.env.*.local
+
+# OS Metadata
+.DS_Store
+Thumbs.db
+.freebuff/
+
+# Testing & Coverage
+coverage/
+.nyc_output/
+
+# SonarQube cache
+.scannerwork/
+
+# IDE files
+.idea/
+*.sublime-project
+*.sublime-workspace

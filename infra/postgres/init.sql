@@ -5,6 +5,13 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- 0. (Opsional) Database & User 'sonar' untuk SonarQube Community
+-- Note: init.sql hanya dijalankan sekali saat volume postgres_data dibuat pertama kali.
+-- Untuk stack lama yang sudah berjalan, gunakan: npm run sonar:db:init
+-- Kredensial dipakai HANYA oleh instance SonarQube lokal (docker-compose.sonarqube.yml).
+CREATE USER sonar WITH PASSWORD 'sonarpassword';
+CREATE DATABASE sonar OWNER sonar;
+
 -- 1. Tabel Tenants
 CREATE TABLE IF NOT EXISTS tenants (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

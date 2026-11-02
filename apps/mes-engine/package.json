@@ -5,7 +5,9 @@
   "main": "src/index.ts",
   "scripts": {
     "dev": "tsx src/index.ts",
-    "start": "tsx src/index.ts"
+    "build": "tsc",
+    "start": "tsx src/index.ts",
+    "start:prod": "node dist/index.js"
   },
   "dependencies": {
     "kafkajs": "^2.2.4",

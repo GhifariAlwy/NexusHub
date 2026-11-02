@@ -84,13 +84,16 @@ services:
       - kafka
 
   # 5. ClickHouse Server: Observability, Audit Logs & Capacity Planning OLAP
+  # Catatan: Native TCP di-publish ke host port 9001 karena host port 9000
+  # dipakai UI SonarQube (lihat docker-compose.sonarqube.yml).
+  # Komunikasi antar-container tetap lewat internal port 9000 (Grafana/Alloy).
   clickhouse:
     image: clickhouse/clickhouse-server:23.8-alpine
     container_name: nexushub-clickhouse
     restart: unless-stopped
     ports:
       - "8123:8123"
-      - "9000:9000"
+      - "9001:9000"
     ulimits:
       nofile:
         soft: 262144

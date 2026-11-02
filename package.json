@@ -12,8 +12,13 @@
     "dev:frontend": "npm --workspace=@nexushub/portal-frontend run dev",
     "dev:mes": "npm --workspace=@nexushub/mes-engine run dev",
     "dev:agent": "npm --workspace=@nexushub/client-agent run dev",
-    "build": "npm --workspace=@nexushub/client-sdk run build && npm --workspace=@nexushub/portal-frontend run build",
-    "simulate": "npm --workspace=@nexushub/load-simulator run simulate"
+    "build": "npm --workspace=@nexushub/client-sdk run build && npm --workspace=@nexushub/portal-backend run build && npm --workspace=@nexushub/mes-engine run build && npm --workspace=@nexushub/client-agent run build && npm --workspace=@nexushub/portal-frontend run build",
+    "typecheck": "npx tsc --noEmit -p packages/client-sdk/tsconfig.json && npx tsc --noEmit -p apps/portal-backend/tsconfig.json && npx tsc --noEmit -p apps/portal-frontend/tsconfig.json && npx tsc --noEmit -p apps/mes-engine/tsconfig.json && npx tsc --noEmit -p apps/client-agent/tsconfig.json",
+    "simulate": "npm --workspace=@nexushub/load-simulator run simulate",
+    "sonar:db:init": "docker exec nexushub-postgres psql -U postgres -tAc \"SELECT 1 FROM pg_roles WHERE rolname='sonar'\" | grep -q 1 || docker exec nexushub-postgres psql -U postgres -c \"CREATE USER sonar WITH PASSWORD 'sonarpassword'\"; docker exec nexushub-postgres psql -U postgres -tAc \"SELECT 1 FROM pg_database WHERE datname='sonar'\" | grep -q 1 || docker exec nexushub-postgres psql -U postgres -c \"CREATE DATABASE sonar OWNER sonar\"",
+    "sonar:up": "npm run sonar:db:init && docker compose -f docker-compose.yml -f docker-compose.sonarqube.yml --profile sonarqube up -d sonarqube",
+    "sonar:down": "docker compose -f docker-compose.yml -f docker-compose.sonarqube.yml --profile sonarqube rm --stop --force sonarqube",
+    "sonar": "if [ -z \"$SONAR_TOKEN\" ]; then echo '❌ SONAR_TOKEN belum diset. Contoh: export SONAR_TOKEN=sqa_xxx (lihat README bagian SonarQube)'; exit 1; fi; if [ ! -z \"$(docker ps -q -f name=nexushub-sonarqube)\" ]; then docker run --rm -v \"$PWD:/usr/src\" -e SONAR_HOST_URL=http://sonarqube:9000 -e SONAR_TOKEN --network \"$(docker inspect nexushub-sonarqube --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}')\" sonarsource/sonar-scanner-cli:latest; else echo '❌ SonarQube belum jalan. Jalankan dulu: npm run sonar:up (tunggu ~2-3 menit hingga UI aktif di http://localhost:9000)'; exit 1; fi"
   },
   "devDependencies": {
     "concurrently": "^10.0.6"

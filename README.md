@@ -14,6 +14,7 @@
 6. [Fitur & Alur Kerja Utama](#-fitur--alur-kerja-utama)
 7. [Simulasi Beban & Capacity Planning](#-simulasi-beban--capacity-planning)
 8. [Profil Opsional (WSO2 & Security)](#-profil-opsional-wso2--security)
+9. [SonarQube: SAST & Code Quality (Profil Opsional)](#sonarqube-sast--code-quality-profil-opsional)
 
 ---
 
@@ -79,6 +80,7 @@ Didesain khusus agar seluruh ekosistem dapat dijalankan di 1 laptop pengembang t
 | **Kafka UI** | `8080` | [http://localhost:8080](http://localhost:8080) | Web console Apache Kafka |
 | **Grafana Dashboard** | `3000` | [http://localhost:3000](http://localhost:3000) | Single Pane of Glass (User/Pass: `admin`/`admin`) |
 | **ClickHouse HTTP** | `8123` | [http://localhost:8123](http://localhost:8123) | Endpoint kueri analitik OLAP |
+| **ClickHouse Native TCP** | `9001` | `localhost:9001` | Digeser dari 9000 ke 9001 agar port host 9000 bebas untuk UI SonarQube (internal antar-container tetap 9000) |
 | **DragonFly Cache** | `6379` | `localhost:6379` | In-memory Redis-compatible routing table |
 | **PostgreSQL** | `5432` | `localhost:5432` | Database portal (`portal_db`) |
 | **Apache Kafka Broker** | `9092` | `localhost:9092` | Message broker KRaft mode |
@@ -199,6 +201,96 @@ docker compose -f docker-compose.yml -f docker-compose.security.yml --profile se
 ```
 - BunkerWeb WAF melindungi port `80` dan `443` dengan aturan OWASP CRS.
 - Falco memantau integritas kontainer secara real-time.
+
+---
+
+## 🧪 SonarQube: SAST & Code Quality (Profil Opsional)
+
+Analisis statik (SAST) & kualitas kode monorepo TypeScript menggunakan **SonarQube Community Edition** yang berbagi instance **PostgreSQL yang sudah ada** (`nexushub-postgres`) — tanpa instance database baru, tanpa instalasi Java/SDK di laptop host. Stack ini **tidak ikut berjalan** dengan `docker compose up -d` biasa (hemat RAM), dan hanya aktif saat diminta (limit memori 2GB).
+
+### a. Menyalakan & Mematikan SonarQube
+
+```bash
+# Nyalakan (idempotent): membuat DB 'sonar' + user 'sonar' di PostgreSQL yang ada,
+# lalu start container UI
+npm run sonar:up
+
+# Pantau proses boot pertama (±2–3 menit; log CE/Web/ES akan stabil)
+docker logs -f nexushub-sonarqube
+
+# Matikan SonarQube tanpa menyentuh service lain (service utama tetap jalan)
+npm run sonar:down
+```
+
+> Catatan: host port `9000` milik UI SonarQube; native TCP ClickHouse digeser ke host port `9001`. Komunikasi internal antar-container tidak berubah, jadi Grafana/Alloy tetap berfungsi.
+
+### b. Membuat Project Token Pertama Kali
+
+1. Buka [http://localhost:9000](http://localhost:9000) — login pertama: `admin` / `admin`, lalu ganti password.
+2. Saat wizard **"How do you want to create your project"** muncul, pilih **Manually**, isi:
+   - **Project display name:** `NexusHub Lite`
+   - **Project key:** `nexushub-lite`
+3. Di wizard **"Set up project for Clean as You Code"**: pilih **Use a global setting**, lalu **Locally** → buat token dengan nama misal `nexushub-lite-local`, klik **Generate**, dan salin token (`sqa_...` / `sqp_...`).
+4. Analisis kode di mesin lokal memakai **token user (bu_...)**; token project (sqp_...) sebaiknya disimpan untuk CI. Persistensi token opsional — sesi terminal saja sudah cukup:
+
+```bash
+export SONAR_TOKEN="isi_token_anda"
+```
+
+> Jika wizard sudah terlewat, buat token via menu: **Account (avatar) → My Account → Security → Generate Tokens** (type: *User Token*), atau **Project Settings → Project Analysis Token**.
+
+### c. Menjalankan Scanning
+
+```bash
+npm run sonar
+```
+
+Script ini:
+- Menjalankan `sonarsource/sonar-scanner-cli` sebagai kontainer Docker (tanpa Java di host).
+- Debug bergabung ke network compose yang sama dengan SonarQube & PostgreSQL.
+- Scoping otomatis sesuai `sonar-project.properties`: 5 module workspace (`apps/portal-backend`, `apps/portal-frontend`, `apps/client-agent`, `apps/mes-engine`, `packages/client-sdk`), dengan exclusions `**/node_modules/**`, `**/dist/**`, `**/build/**`, artefak bundler (`vite/webpack/rollup/esbuild.config`), serta pengenalan tsconfig (portal-frontend & client-sdk).
+
+Jika berhasil, output scanner diakhiri dengan `EXECUTION SUCCESS` + link halaman hasil di UI SonarQube.
+
+### d. Membaca Laporan: Quality Gate, Vulnerabilities, & Security Hotspots
+
+Setelah scan, buka dashboard project `nexushub-lite` di [http://localhost:9000](http://localhost:9000):
+
+| Panel | URL Halaman | Arti |
+|---|---|---|
+| **Quality Gate** | halaman utama project (badge kanan atas) | `Passed` ✅ = lolos kondisi default (mis. Heredity Coverage/API density, Reliability Rating ≤ A, Security Rating ≤ A, Duplicated Lines ≤ 3%, Maintainability ≤ A). `Failed` ❌ = salah satu kondisi gagal. Cek detail di tab **Conditions** untuk melihat metrik mana yang merah. |
+| **Vulnerabilities** | **Issues** → filter *Type: Vulnerability* | Bug/lemah keamanan yang **terkonfirmasi** (mis. injeksi, XSS, crypto lemah) di kode — wajib diperbaiki; masing-masing menurunkan *Security Rating* & menambah **Security Hotspot Review/Building Issues** di gate. |
+| **Security Hotspots** | **Security Hotspots** (menu kiri) | Titik kode **potensial** berisiko yang butuh **review manusia**: mark **Review — Safe** apabila aman, atau **Resolve — Fix this issue** bila benar perlu perbaikan. Hotspot yang menunggu review muncul di kolom **Security Hotspots Reviewed = 0%** pada gate (*Security*). |
+
+> ⚙️ Diagnosis bila scanner gagal / datasource error: cek `docker logs nexushub-sonarqube` (khususnya log `web` & `ce`) dan pastikan `docker exec nexushub-postgres psql -U postgres -c '\l sonar'` menampilkan database `sonar` dengan owner `sonar` (buat ulang via `npm run sonar:db:init` bila terhapus).
+
+---
+
+## 🚀 GitHub Actions CI/CD Pipeline
+
+Proyek ini telah dilengkapi dengan pipeline DevSecOps CI/CD terotomasi di [.github/workflows/ci-cd.yml](file:///Users/mac/local-integration-hub/.github/workflows/ci-cd.yml):
+
+```text
+[Push / Pull Request]
+        │
+        ├─── 1. Build & Typecheck (Semua workspace: SDK, Backend, Frontend, MES, Agent)
+        ├─── 2. Security Gate (GitLeaks Secret Scanner & Trivy SCA Vulnerability Scan)
+        ├─── 3. Ephemeral Integration Smoke Test (Postgres, Kafka, DragonFly, ClickHouse)
+        └─── 4. Build & Push Docker Images ke GitHub Container Registry (ghcr.io)
+```
+
+### Cara Menghubungkan ke GitHub:
+1. Pastikan remote git sudah mengarah ke repositori GitHub Anda:
+   ```bash
+   git remote add origin https://github.com/<USERNAME>/nexushub-lite.git
+   ```
+2. Commit dan push kode:
+   ```bash
+   git add .
+   git commit -m "feat: complete devsecops ci-cd with github actions"
+   git push -u origin main
+   ```
+3. Buka tab **Actions** di repositori GitHub Anda untuk memantau proses build, scanning keamanan, dan penerbitan image secara real-time.
 
 ---
 

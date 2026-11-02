@@ -1,0 +1,45 @@
+# ====================================================================
+# NEXUSHUB LITE: Optional Profile - SonarQube (SAST & Code Quality)
+# TIDAK ikut jalan dengan `docker compose up -d` biasa (mode hemat RAM).
+#
+# Jalankan dengan (WAJIB digabung dengan compose utama agar satu network
+# dengan nexushub-postgres, tanpa membuat instance database baru):
+#
+#   npm run sonar:up
+#   # atau manual:
+#   docker compose -f docker-compose.yml -f docker-compose.sonarqube.yml \
+#     --profile sonarqube up -d sonarqube
+# ====================================================================
+
+services:
+  sonarqube:
+    image: sonarqube:community
+    container_name: nexushub-sonarqube
+    profiles:
+      - sonarqube
+    ports:
+      - "9000:9000"   # UI SonarQube: http://localhost:9000
+    environment:
+      # Re-use PostgreSQL yang sudah ada (nexushub-postgres) via DB 'sonar'.
+      # Database ini dibuat oleh `npm run sonar:db:init` atau init.sql fresh install.
+      SONAR_JDBC_URL: jdbc:postgresql://postgres:5432/sonar
+      SONAR_JDBC_USERNAME: sonar
+      SONAR_JDBC_PASSWORD: sonarpassword
+      # Abaikan pengecekan vm.max_map_count Elasticsearch yang ketat
+      # (Docker Desktop / macOS sudah aman terkonfigurasi).
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    # Batas memori yang wajar: ~2GB (heap + ES + web + compute engine).
+    mem_limit: 2g
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+
+volumes:
+  sonarqube_data:
+  sonarqube_extensions:
+  sonarqube_logs:
